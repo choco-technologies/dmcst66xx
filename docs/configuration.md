@@ -14,6 +14,7 @@ The section of the touch panel (`driver_name=dmcst66xx`):
 | `poll_ms` | 10 | period of the polling of the chip while a client waits (`WAIT_EVENT`) |
 | `release_ms` | 50 | a contact is lifted when the chip has not reported it for this long |
 | `reset` | no | `yes`: the driver waits for a `reset` friend and resets the chip before it starts |
+| `reset_role` | reset | the `friend_role` of that reset line: another name when the touch panel shares a group with a display (below) |
 
 The axes are turned in this order: swap, mirror, then the scaling from the range of the chip to `width` x `height`. For a display shown
 rotated by 90 or 270 degrees, `width` and `height` are those of the display as shown and `swap_xy` is usually on.
@@ -26,7 +27,15 @@ started once the required ones are there:
 | `friend_role` | |
 |---|---|
 | `i2c` | the dmi2c node the chip is on (required) |
-| `reset` | the reset line of the chip, a dmgpio output, low = reset (with `reset=yes`) |
+| `reset` (`reset_role`) | the reset line of the chip, a dmgpio output, low = reset (with `reset=yes`) |
 
 The interrupt line of the chip is not used: the driver polls. Declare the touch panel last in the file: the order is the order of the
 creation and, reversed, of the teardown.
+
+## The group of the display
+
+The display service (dmview) takes its touch input from a member of the display's own `friends_group`. The touch panel therefore joins that group
+instead of having one of its own - and then the roles of the group must be distinct: the display has a `reset` line of its own, so the touch
+panel's is given another role with `reset_role` (the other friends, `i2c` and the display's, are ignored by each side).
+[configs/board/t-deck-pro/touch.ini](../configs/board/t-deck-pro/touch.ini) is the touch panel in the group `epd` of the e-paper
+([dmuc8253](https://github.com/choco-technologies/dmuc8253)'s `display.ini`).

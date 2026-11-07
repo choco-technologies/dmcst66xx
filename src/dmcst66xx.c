@@ -76,6 +76,7 @@ struct dmdrvi_context
     node_t                i2c;
     node_t                reset;
     bool                  reset_wired;      /**< The configuration says there is a reset line to wait for */
+    char                 *reset_role;       /**< friend_role of the reset line ("reset"; another when the group is shared, see reset_role) */
     bool                  started;          /**< The chip answered and was put in the normal mode */
     tracked_t             tracked[DMCST66XX_MAX_CONTACTS];
     dmdrvi_input_state_t  current;          /**< The last state computed */
@@ -187,6 +188,9 @@ static int read_config(dmdrvi_context_t context, dmini_context_t ini)
     c->poll_ms      = (uint16_t)dmini_get_int(ini, NULL, "poll_ms", 10);
     c->release_ms   = (uint16_t)dmini_get_int(ini, NULL, "release_ms", 50);
     context->reset_wired = string_to_switch(dmini_get_string(ini, NULL, "reset", NULL), false);
+    context->reset_role = Dmod_StrDup(dmini_get_string(ini, NULL, "reset_role", "reset"));
+    if (context->reset_role == NULL)
+        return -ENOMEM;
 
     if (!dmcst66xx_validate_config(c))
     {
@@ -555,6 +559,7 @@ dmod_dmdrvi_dif_api_declaration(2.0, dmcst66xx, dmdrvi_context_t, _create, ( dmi
     return context;
 
 fail:
+    Dmod_Free(context->reset_role);
     context->magic = 0;
     Dmod_Free(context);
     return NULL;
@@ -567,6 +572,7 @@ dmod_dmdrvi_dif_api_declaration(2.0, dmcst66xx, void, _free, ( dmdrvi_context_t 
     /* The nodes of the friends are not touched: dmdevfs tears them down before this call, in reverse order of the sections */
     Dmod_Free(context->i2c.path);
     Dmod_Free(context->reset.path);
+    Dmod_Free(context->reset_role);
     dmosi_mutex_destroy(context->lock);
     context->magic = 0;
     Dmod_Free(context);
@@ -577,7 +583,7 @@ dmod_dmdrvi_dif_api_declaration(2.0, dmcst66xx, void, _friend_changed, ( dmdrvi_
     if (!is_valid_context(context) || info == NULL || info->friend_role == NULL)
         return;
     node_t *node = strcmp(info->friend_role, "i2c") == 0 ? &context->i2c
-                 : strcmp(info->friend_role, "reset") == 0 ? &context->reset : NULL;
+                 : strcmp(info->friend_role, context->reset_role) == 0 ? &context->reset : NULL;
     if (node == NULL)
         return;
     node_forget(node);
